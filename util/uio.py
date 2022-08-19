@@ -15,10 +15,8 @@ from typing import Tuple, List, Optional, Union, Any
 import torch
 
 
-# 图像裁剪
 def process_image(image, aim_H=480, aim_W=640, mode="resize", clip_mode="center"):
 
-    # 返回H x W x C
     H, W, C = np.array(image).shape
 
     '''
@@ -30,7 +28,6 @@ def process_image(image, aim_H=480, aim_W=640, mode="resize", clip_mode="center"
     if (H == aim_H and W == aim_W):
         return np.array(image)
 
-    # 直接对图像进行重塑
     if (mode == "resize"):
         # dsize = （W，H）
         image = np.asarray(
@@ -43,20 +40,16 @@ def process_image(image, aim_H=480, aim_W=640, mode="resize", clip_mode="center"
         )
 
 
-    # 对图像进行剪切
     elif (mode == "clip"):
 
-        # 若图像像素不足，则上采样
         while (H < aim_H or W < aim_W):
             image = cv2.pyrUp(src=image)
             H, W, C = np.array(image).shape
 
-        # 若图像像素大于指定图像的两倍，那么下采样一次
         if (H > aim_H * 2 and W > aim_W * 2):
             image = cv2.pyrDown(src=image)
             H, W, C = np.array(image).shape
 
-        # 对图像进行裁剪
         if (clip_mode == "center"):
             H_top = int((H - aim_H) / 2)
             W_left = int((W - aim_W) / 2)
@@ -68,7 +61,6 @@ def process_image(image, aim_H=480, aim_W=640, mode="resize", clip_mode="center"
             W_left = int(np.random.random() * (W - aim_W))
             image = image[H_top:H_top + aim_H, W_left:W_left + aim_W]
 
-    # 直接0填补
     elif (mode == "padding"):
         # (C,H,W)
         image = np.transpose(image, (2, 0, 1))
@@ -80,7 +72,6 @@ def process_image(image, aim_H=480, aim_W=640, mode="resize", clip_mode="center"
             padding_H0 = np.zeros((C, padding_H, W))
             padding_W0 = np.zeros((C, aim_H, padding_W))
 
-            # 填补
             image = np.concatenate([image, padding_H0], axis=1)
             image = np.concatenate([image, padding_W0], axis=2)
         elif(aim_H < H):
@@ -252,13 +243,7 @@ def read_descriptors(desc_type, root_dir, scene_name, seq_name, pcd_name):
 
 
 def knn_search(points_src, points_dst, k=1):
-    '''
-        返回描述符points_src对应的距离最近的1个points_dst的索引，一个单列表
-    :param points_src: 要找最近距离的描述符矩阵
-    :param points_dst: 被找的描述符矩阵
-    :param k: 每个描述符返回的个数
-    :return: 单列表，包含points_dst的索引
-    '''
+
     import open3d as o3d
     o3d.utility.set_verbosity_level(o3d.utility.VerbosityLevel.Error)
 
@@ -280,18 +265,6 @@ def imageOfPoint(
         image_size,
         image_same=False
 ):
-
-    '''
-        给出一个点，返回投影到RGB图像上的取余块的image_size x image_size的图片
-    :param points: 投影的点
-    :param points_all: all的点
-    :param intrinsic: 相机内参
-    :param images: 被投影的RGB图像
-    :param image_size: 切分图像的大小
-    :param image_same: 切分图像的是否都使用一个
-    :return: 切分的图像（B，C，image_size，image_size）
-    '''
-
     image_list = []
 
     if(image_same):
@@ -326,11 +299,7 @@ def imageOfPoint(
 
 def p2i(point,points_all,intrinsic,image,image_size):
 
-    # 获取图像的长度，宽度
     height, width, _ = image.shape
-
-
-    # 获取对应点像素值（x，y）
     x, y = carema2pixe(
         point=point,
         points_all=points_all,
@@ -360,16 +329,9 @@ def p2i(point,points_all,intrinsic,image,image_size):
         print("full up image!")
         return image
 
-    # print(f"image.shape:{image.shape},x:{x},y:{y},height:{height},width:{width}")
-    # 切图片
     image_size = image_size // 2
-    # 切图片
 
-    '''
-        像素坐标可以是浮点型
-        像素值必须是整型
-        因此索引像素时，只能取整
-    '''
+
     if (x - image_size < 0 or x + image_size > width or y - image_size < 0 or y + image_size > height):
         if (x - image_size < 0 and y - image_size < 0):
             image_middle = image[
@@ -497,25 +459,7 @@ def p2i(point,points_all,intrinsic,image,image_size):
             np.round(x - image_size).astype(int):np.array(x + image_size).astype(int),
             :
         ]
-    # if (x + image_size > width):
-    #     x = width - image_size
-    # if (x - image_size < 0):
-    #     x = image_size
-    # if (y + image_size > height):
-    #     y = height - image_size
-    # if (y - image_size < 0):
-    #     y = image_size
-    #
-    # '''
-    #     像素坐标可以是浮点型
-    #     像素值必须是整型
-    #     因此索引像素时，只能取整
-    # '''
-    # image = image[
-    #         int(y - image_size):int(y + image_size),
-    #         int(x - image_size):int(x + image_size),
-    #         :
-    #         ]
+
     image = np.expand_dims(np.transpose(image,axes=(2,0,1)),axis=0)
     # print(image.shape)
 
@@ -523,79 +467,37 @@ def p2i(point,points_all,intrinsic,image,image_size):
 
 def max_pixel(points,intrinsic):
 
-    # 相机内参值
     CAM_FX, CAM_FY = intrinsic[0,0], intrinsic[1,1]  # fx/fy
     CAM_CX, CAM_CY = intrinsic[0,2], intrinsic[1,2]  # cx/cy
 
-    # 最小深度
     EPS = 1.0e-16
 
-    # 滤除镜头后方的点
-    '''
-        找出距离大于EPS的位置和深度
-    '''
     valid = points[:, 2] > EPS
     z = points[valid, 2]
 
-    # 点云反向映射到像素坐标位置
-    '''
-        np.round()返回四舍五入的值
-
-        u，v表示根据内参，将（x，y，z）转化成对应的像素（u，v）
-    '''
     u = points[valid, 0] * CAM_FX / z + CAM_CX  # x
     v = points[valid, 1] * CAM_FY / z + CAM_CY  # y
 
-    # 获取u，v的最大值
     return np.max(abs(u)), np.max(abs(v))
 
 def carema2pixe(point,points_all,intrinsic,W=480,H=640):
-    '''
-        根据相机位姿，相机内参，将相机坐标转化为对应的像素坐标
-        参考，https://docs.opencv.org/3.0-beta/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html?highlight=projectpoints
-        cv2.projectPoints()函数
-    :param point: 相机坐标
-    :param point_all: 相机坐标
-    :param intrinsic: 相机内参
-    :param width: 图像宽度
-    :param height: 图像长度
-    :return: 返回像素坐标（x，y）
-    '''
-    # 相机内参值
+
     CAM_FX, CAM_FY = intrinsic[0, 0], intrinsic[1, 1]  # fx/fy
     CAM_CX, CAM_CY = intrinsic[0, 2], intrinsic[1, 2]  # cx/cy
 
-    # 相机坐标转化为世界坐标
-    # point = rotate_inv @ (point - translate)
-    # point = rotate @ point + translate
-
-    # 获取x，y，z
     x, y, z = point
 
-    # 点云反向映射到像素坐标位置
-    '''
-        np.round()返回四舍五入的值
-
-        u，v表示根据内参，将（x，y，z）转化成对应的像素（u，v）
-    '''
     u = abs(x * CAM_FX / z + CAM_CX ) # x
     v = abs(y * CAM_FY / z + CAM_CY ) # y
 
-    # 获取u，v的最大值
     U_MAX, V_MAX = max_pixel(points=points_all, intrinsic=intrinsic)
 
-    # 获取比例
     U_scale = W / U_MAX
     V_scale = H / V_MAX
 
-    # print(f"U_MAX:{U_MAX},V_MAX:{V_MAX},W:{W},H:{H},U_scale:{U_scale},V_scale:{V_scale},u:{u},v:{v}")
-
-    # 应用比例
     u = np.floor(u * U_scale).astype(int)
     v = np.floor(v * V_scale).astype(int)
 
-
-    # 四舍五入将像素值取整
     u = np.round(u).astype(int)
     v = np.round(v).astype(int)
     # print(f"u:{u},v:{v}")
@@ -613,26 +515,15 @@ def check_carema2pixes(points,intrinsic):
     return True
 
 def check_carema2pixe(point,intrinsic):
-    '''
 
-    '''
-    # 相机内参值
     CAM_FX, CAM_FY = intrinsic[0, 0], intrinsic[1, 1]  # fx/fy
     CAM_CX, CAM_CY = intrinsic[0, 2], intrinsic[1, 2]  # cx/cy
 
-    # 获取x，y，z
     x, y, z = point
 
-    # 点云反向映射到像素坐标位置
-    '''
-        np.round()返回四舍五入的值
-
-        u，v表示根据内参，将（x，y，z）转化成对应的像素（u，v）
-    '''
     u = x * CAM_FX / z + CAM_CX  # x
     v = y * CAM_FY / z + CAM_CY  # y
 
-    # 四舍五入将像素值取整
     u = np.round(u).astype(int)
     v = np.round(v).astype(int)
 

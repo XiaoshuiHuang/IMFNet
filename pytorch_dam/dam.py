@@ -6,9 +6,9 @@ from pytorch_dam.base_dam import BaseDAM
 class DAM(BaseDAM):
     def __init__(
             self,
-            model,                              # 模型对象
-            target_layer,                       # 目标层对象
-            use_cuda=False,                     # 是否使用GPU
+            model,                              # model obj
+            target_layer,                       # target layer obj
+            use_cuda=False,                     # GPU
     ):
         super(DAM, self).__init__(model, target_layer, use_cuda)
 

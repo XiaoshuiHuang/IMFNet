@@ -175,17 +175,9 @@ if __name__ == '__main__':
       model.eval()
 
       model = model.to(device)
-      '''
-          model,                              # 模型对象
-          config,                             # 配置对象
-          source_path,                        # 测试集路径
-          target_path,                        # 评估产生数据的路径
-          voxel_size,                         # 降采样的体素值，0.05
-          device                              # GPU
 
-      '''
       with torch.no_grad():
-          # 产生每个场景抽取特征的描述符，以及对应点
+
           extract_features_batch(
               model=model,
               config=config,
@@ -194,9 +186,6 @@ if __name__ == '__main__':
               voxel_size=config.voxel_size,
               device=device,
           )
-          # end_time = 0
-          # for s in all_time:
-          #     end_time = end_time + s
-          # avg_time = np.sum(all_time) / np.sum(all_desc)
+
           print(f"All Time:{np.sum(all_time)},AVG:{np.sum(all_time) / np.sum(all_desc)}")
 

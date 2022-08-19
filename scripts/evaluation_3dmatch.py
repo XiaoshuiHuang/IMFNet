@@ -70,9 +70,8 @@ class RegisterResult(object):
             ir=None
     ):
         '''
-            配准结果对象
-        :param frag1_name: 点云P
-        :param frag2_name: 点云Q
+        :param frag1_name: p
+        :param frag2_name: q
         :param num_inliers:
         :param inlier_ratio:
         :param gt_flag:
@@ -88,21 +87,20 @@ class RegisterResult(object):
         self.ir = ir
 
 def register_fragment_pair(
-        scene_name,                     # 当前场景的名称
-        seq_name,                       # 当前序列的名称seq-01
-        frag1_name,                     # 配准对象中的点云P
-        frag2_name,                     # 配准对象中的点云Q
-        desc_type,                      # 描述符类型文件夹
-        poses,                          # 对于当前场景下当前序列下（Seq-01）的pose
-        infos,
-        pcloud_root,                    # 测试集根路径
-        desc_root,                      # 产生.desc.npy的路径
-        inlier_thresh,                  # 初始化阈值
-        overlap_pid,
+        scene_name,                     # current scene
+        seq_name,                       # seq name (seq-01)
+        frag1_name,                     # p -- id
+        frag2_name,                     # q -- id
+        desc_type,                      # IMFNet
+        poses,                          # GT pose
+        infos,                          # RMSE
+        pcloud_root,                    # Testing Set path
+        desc_root,                      # desc path
+        inlier_thresh,                  # 0.1
+        overlap_pid,                    # the id of pose and info
         cfg,
 ):
     '''
-        点云P和点云Q进行匹配
     :param scene_name:
     :param seq_name:
     :param frag1_name:
@@ -113,22 +111,14 @@ def register_fragment_pair(
     :param desc_root:
     :param inlier_thresh:
     :return:
-        num_inliers         :              距离小于指定阈值的数量（小于阈值，即符合规定）
-        inlier_ratio        :              计算，精确率，距离小于指定阈值的数量/距离矩阵的长度
-        gt_flag             :              1，表示此次计算符合，0，舍去此次计算
+        num_inliers         :              [0.1]
+        inlier_ratio        :              [0.05,0.2]
+        gt_flag             :              1: True，0: False
     '''
     import open3d as o3d
     o3d.utility.set_verbosity_level(o3d.utility.VerbosityLevel.Error)
 
-    # print('  Start {} - {} - {} - {} - {}'.format(
-    #     desc_type,
-    #     scene_name,
-    #     seq_name,
-    #     frag1_name,
-    #     frag2_name)
-    # )
-
-    # 获取当前点云P和Q在当前场景下的id（cloud_bin_* -> *）
+    # point cloud -- id
     frag1_id = int(frag1_name.split('_')[-1])
     frag2_id = int(frag2_name.split('_')[-1])
     assert frag1_id < frag2_id
@@ -136,10 +126,8 @@ def register_fragment_pair(
     num_rand_keypoints = cfg.num_rand_keypoints
     voxel_size = cfg.voxel_size
 
-    # 点云P的，坐标集合，点集合，点集合对应的特征
     data_i = np.load(osp.join(desc_root,scene_name,seq_name, frag1_name + ".npz"))
     coord_i, points_i, feat_i = data_i['xyz'], data_i['points'], data_i['feature']
-    # 点云Q的，坐标集合，点集合，点集合对应的特征
     data_j = np.load(osp.join(desc_root,scene_name,seq_name, frag2_name+ ".npz"))
     coord_j, points_j, feat_j = data_j['xyz'], data_j['points'], data_j['feature']
 
@@ -148,13 +136,14 @@ def register_fragment_pair(
     frag1_descs = None
     frag2_descs = None
 
-    # use the keypoints in 3DMatch
+    # random points
     if num_rand_keypoints > 0:
         # keypoints path
         keypoints_name = f"{scene_name}_{seq_name}_{frag1_id}_{frag2_id}_keypoints.npz"
         keypoints_folder = osp.join(cfg.out_root,desc_type+"_keypoints")
         uio.may_create_folder(keypoints_folder)
         keypoints_path = osp.join(keypoints_folder, keypoints_name)
+        # use the keypoints in 3DMatch
         if(cfg.keypoints):
             # loding keypoints
             keypoints = np.load(keypoints_path)
@@ -193,7 +182,7 @@ def register_fragment_pair(
     if len(frag1_kpts_3d.points) < len(frag2_kpts_3d.points):
         trans = run_ransac(frag1_kpts_3d, frag2_kpts_3d, feat_i_3d, feat_j_3d, cfg.voxel_size,ransac_n=3)
     else:
-        trans = run_ransac(frag2_kpts_3d, frag1_kpts_3d, feat_j_3d, feat_i_3d, cfg.voxel_size,ransac_n=3)  # execute this
+        trans = run_ransac(frag2_kpts_3d, frag1_kpts_3d, feat_j_3d, feat_i_3d, cfg.voxel_size,ransac_n=3)
         trans = np.linalg.inv(trans)
     es_T = np.linalg.inv(trans)
     gt_T = poses[overlap_pid].transformation
@@ -247,28 +236,26 @@ def register_fragment_pair(
     return num_inliers, inlier_ratio, gt_flag, rs
 
 
-def run_scene_matching(scene_name,                  # 当前场景名称
-                       seq_name,                    # seq名称（测试集中都是seq-01）
-                       desc_type,                   # 描述符的代表文件夹
-                       pcloud_root,                 # 测试集根路径
-                       desc_root,                   # 对每个点计算描述符的保存路径
-                       out_root,                    # 结果输出路径（./log_3dmatch）
-                       inlier_thresh=0.1,           # 初始化阈值
+def run_scene_matching(scene_name,                  # current scene
+                       seq_name,                    # seq name（seq-01 in testing）
+                       desc_type,                   # IMFNet
+                       pcloud_root,                 # Testing Set path
+                       desc_root,                   # desc path
+                       out_root,                    # result path
+                       inlier_thresh=0.1,           # 0.1
                        cfg=None,
                        ):
 
-    # 创建输出结果文件夹（./log_3dmatch/desc_type）
+    # create the output files
     out_folder = osp.join(out_root, desc_type)
     uio.may_create_folder(out_folder)
-
-    # 输出文件夹名称
     out_filename = '{}-{}-{:.2f}'.format(scene_name, seq_name, inlier_thresh)
-    # 判断是否已经计算过当前结果的文件
+    # skipping exist files
     if Path(osp.join(out_folder, out_filename + '.pkl')).is_file():
         print('[*] {} already exists. Skip computation.'.format(out_filename))
         return osp.join(out_folder, out_filename)
 
-    # 返回当前场景下当前序列下（seq-01）所有的.ply文件
+    # all cloud_bin_* files
     fragment_names = uio.list_files(
         osp.join(
             pcloud_root,
@@ -279,7 +266,7 @@ def run_scene_matching(scene_name,                  # 当前场景名称
         alphanum_sort=True
     )
 
-    # 返回当前场景下当期序列下所有.ply文件的前缀（cloud_bin_*）
+    # all cloud_bin_* names
     fragment_names = [fn[:-4] for fn in fragment_names]
 
     poses = uio.read_log(osp.join(f'../benchmarks/{cfg.benchmarks}', scene_name, 'gt.log'))
@@ -490,13 +477,13 @@ def plot_recall_curve(desc_types, stat_paths, out_path):
         # plt.plot(threshes, avg_recalls * 100, linewidth=1)
         print(f"------- {desc_type} ---------")
 
-        print(f"avg_recalls:{avg_recalls}")
-        print(f"avg_std:{avg_std}")
+        print(f"FMR:{avg_recalls}")
+        print(f"STD:{avg_std}")
 
-        print(f"avg_rr:{avg_rr}")
-        print(f"avg_rre:{avg_rre}")
-        print(f"avg_rte:{avg_rte}")
-        print(f"avg_ir:{avg_ir}")
+        print(f"Registration Recall:{avg_rr}")
+        print(f"RRE:{avg_rre}")
+        print(f"RTE:{avg_rte}")
+        print(f"Inlier Ratio:{avg_ir}")
 
         print(f"------- {desc_type} ---------")
 
@@ -523,7 +510,7 @@ def evaluate(cfg):
     else:
         raise RuntimeError('[!] Mode is not supported.')
 
-    # 循环阈值
+    # recurrent INLIER_THRESHES
     for inlier_thresh in INLIER_THRESHES:
         print('Start inlier_thresh {:.2f}m'.format(inlier_thresh))
         stat_paths = list()
@@ -569,7 +556,8 @@ def evaluate(cfg):
 def parse_args():
 
     test_path = '/DISK/qwt/datasets/3dmatch/3DMatch_test'
-    out_path = "/DISK/qwt/desc/transformer/result"
+    # out_path = "/DISK/qwt/desc/transformer/result"
+    out_path = "/DISK/qwt/desc/transformer/good_result/Lo/nocat_198/result2/IMFNet_3DLoMatch_result"
 
     desc_path = "/DISK/qwt/desc/transformer/desc"
     desc_type = "IMFNet"
@@ -589,9 +577,9 @@ def parse_args():
     parser.add_argument('--desc_types', nargs='+',default=desc_types)
     parser.add_argument('--mode', default='test')
     parser.add_argument('--voxel_size', default=0.025, type=float, help='voxel size to preprocess point cloud')
-    parser.add_argument('--num_rand_keypoints', type=int, default=5000, help='每个场景产生随机点的数量')
-    parser.add_argument('--keypoints',type=bool, default=False, help='wheather saving the keypoint')
-    parser.add_argument('--benchmarks', default='3DMatch', help='3DMatch/3DLoMatch')
+    parser.add_argument('--num_rand_keypoints', type=int, default=5000, help='random points')
+    parser.add_argument('--keypoints',type=bool, default=True, help='wheather saving the keypoint')
+    parser.add_argument('--benchmarks', default='3DLoMatch', help='3DMatch/3DLoMatch')
 
     return parser.parse_args()
 

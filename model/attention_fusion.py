@@ -38,7 +38,6 @@ class PreNorm(nn.Module):
 
     def forward(self, x, **kwargs):
         x = self.norm(x)
-        # 判断是否存在'context'，若不存在，则说明是self-attention，若存在，说明是cross-attention
         if exists(self.norm_context):
             context = kwargs['context']
             normed_context = self.norm_context(context)
@@ -99,23 +98,23 @@ class Attention(nn.Module):
 class AttentionFusion(nn.Module):
     def __init__(
         self,
-        depth,                                  # Process的层数，可以设置为0
-        dim,                                    # Decoder输出特征的维度
-        latent_dim = 512,                       # Encoder输入Query的分辨率
-        cross_heads = 1,                        # Encoder的头大小
-        latent_heads = 8,                       # Process的头大小
-        cross_dim_head = 64,                    # Encoder和Decoder中计算过程中的维度
-        latent_dim_head = 64,                   # Process计算过程中的维度
+        depth,                                  # Self-Attention deep
+        dim,                                    # Q dim
+        latent_dim = 512,                       # Content dim
+        cross_heads = 1,                        # Cross-Attention Head
+        latent_heads = 8,                       # Self-Attention Head
+        cross_dim_head = 64,                    # Cross-Attention Head dim
+        latent_dim_head = 64,                   # Self-Attention Head dim
         weight_tie_layers = False,
     ):
         super().__init__()
 
-        # Encoder部分，不一定是一层
+        # Cross-Attention
         self.cross_attend_blocks = nn.ModuleList([
             PreNorm(latent_dim, Attention(latent_dim, dim, heads = cross_heads, dim_head = cross_dim_head), context_dim = dim),
             PreNorm(latent_dim, FeedForward(latent_dim))
         ])
-        # Process部分，多层
+        #
         get_latent_attn = lambda: PreNorm(latent_dim, Attention(latent_dim, heads = latent_heads, dim_head = latent_dim_head))
         get_latent_ff = lambda: PreNorm(latent_dim, FeedForward(latent_dim))
         get_latent_attn, get_latent_ff = map(cache_fn, (get_latent_attn, get_latent_ff))
@@ -123,53 +122,34 @@ class AttentionFusion(nn.Module):
         self.layers = nn.ModuleList([])
         cache_args = {'_cache': weight_tie_layers}
 
+        # Self-Attention
         for i in range(depth):
             self.layers.append(nn.ModuleList([
                 get_latent_attn(**cache_args),
                 get_latent_ff(**cache_args)
             ]))
-        # # Decoder部分，只能为一层
-        # self.decoder_cross_attn = PreNorm(queries_dim, Attention(queries_dim, latent_dim, heads = cross_heads, dim_head = cross_dim_head), context_dim = latent_dim)
-        # self.decoder_ff = PreNorm(queries_dim, FeedForward(queries_dim)) if decoder_ff else None
-        # # 将最后结果进行重塑为指定想要的形状
-        # self.to_logits = nn.Linear(queries_dim, logits_dim) if exists(logits_dim) else nn.Identity()
 
     def forward(
         self,
-        data,                           # Image特征
-        mask = None,
-        queries_encoder = None,         # PointCloud特征
-        # queries_decoder = None          # PointCloud特征
+        data,                           # Content data
+        mask = None,                    # mask
+        queries_encoder = None,         # Q data
     ):
         b, *_, device = *data.shape, data.device
-        # PointCloud特征
         x = queries_encoder
 
-        # ---- Encoder过程 ----
+        # ---- Cross-Attention----
         cross_attn, cross_ff = self.cross_attend_blocks
-        # 经过Attention得到Query与原Query相加，维度不变
         x = cross_attn(x, context = data, mask = mask) + x
-        # 其目的是让特征较重要的部分，更加重要
         x = cross_ff(x) + x
-        # ---- Encoder过程 ----
+        # ---- Cross-Attention----
 
 
-        #  ---- Process过程 ----
+        #  ---- Self-Attention ----
         for self_attn, self_ff in self.layers:
             x = self_attn(x) + x
             x = self_ff(x) + x
-        # ---- Process过程 ----
+        #  ---- Self-Attention ----
 
         return x
 
-        # # ---- Decoder过程 ----
-        # if not exists(queries_decoder):
-        #     return x
-        # # cross attend from decoder queries to latents
-        # latents = self.decoder_cross_attn(queries_decoder, context = x)
-        # # optional decoder feedforward
-        # if exists(self.decoder_ff):
-        #     latents = latents + self.decoder_ff(latents)
-        # # final linear out
-        # return self.to_logits(latents)
-        # # ---- Decoder过程 ----
