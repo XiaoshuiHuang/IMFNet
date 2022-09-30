@@ -104,4 +104,17 @@ Visualization the target descriptor
 python dam.py --target <target point index>
 ```
 
+## Citating our work
 
+Please cite the following papers if you use our code:
+
+```latex
+@article{huang2021imfnet,
+  title={IMFNet: Interpretable Multimodal Fusion for Point Cloud Registration},
+  author={Huang, Xiaoshui and Qu, Wentao and Zuo, Yifan and Fang, Yuming and Zhao, Xiaowei},
+  journal={arXiv preprint arXiv:2111.09624},
+  year={2021}
+}
+```
+
+ 
