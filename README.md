@@ -104,7 +104,7 @@ Visualization the target descriptor
 python dam.py --target <target point index>
 ```
 
-## Citating our work
+## Citing our work
 
 Please cite the following papers if you use our code:
 
