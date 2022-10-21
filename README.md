@@ -54,10 +54,12 @@ Download the [3DImageMatch/Kitti](https://pan.baidu.com/s/1GMYBth0fhid3IbbUJ0w1-
 Please concat the files
 ```
 # 3DImageMatch
-cat x00 x01 ... x17 > 3DImageMatch
+cat x00 x01 ... x17 > 3DImageMatch.zip
 # Kitti
-cat Kitti01 ... Kitti10 > Kitti
+cat Kitti01 ... Kitti10 > Kitti.zip
 ```
+
+Then, unzip the zip files.
 
 ## Training
 
