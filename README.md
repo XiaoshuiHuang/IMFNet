@@ -113,9 +113,9 @@ Please cite the following papers if you use our code:
 ```latex
 @article{huang2021imfnet,
   title={IMFNet: Interpretable Multimodal Fusion for Point Cloud Registration},
-  author={Huang, Xiaoshui and Qu, Wentao and Zuo, Yifan and Fang, Yuming and Zhao, Xiaowei},
-  journal={arXiv preprint arXiv:2111.09624},
-  year={2021}
+  author={Xiaoshui Huang, Wentao Qu, Yifan Zuo, Yuming Fang, Xiaowei Zhao},
+  journal={IEEE Robotics and Automation Letters},
+  year={2022}
 }
 ```
 
